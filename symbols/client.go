@@ -17,13 +17,16 @@ import (
 // DefaultBaseURL is the public host of the bundle. The layout under it:
 //
 //	manifest.json                     names the newest bundle
+//	manifest.sigstore.json            its signature
 //	manifests/<sha256>.json           the manifest of each bundle, by bundle hash
 //	manifests/<sha256>.sigstore.json  its signature
 //	bundles/<sha256>.jsonl.gz         each bundle
 //
-// Only manifest.json changes. The client reads it to learn the hash of the
-// newest bundle, and then trusts only the signed pair under manifests/. A
-// breaking change of the format gets a new base path, as v2/.
+// Only manifest.json and its signature change. The client reads the hash of
+// the newest bundle from manifest.json, and then checks the signed pair under
+// manifests/. It checks manifest.sigstore.json only for a bundle that comes
+// back after a newer one. A breaking change of the format gets a new base
+// path, as v2/.
 const DefaultBaseURL = "https://vuln-data.safedep.io/v1/"
 
 // DefaultMaxAge is how long a client waits before it asks the host again.
@@ -143,12 +146,12 @@ func (c *Client) Update(ctx context.Context) (Status, error) {
 	if c.offline || c.localDir != "" {
 		return Status{}, nil
 	}
-	cur, curErr := c.cachedManifest()
+	cur, curErr := c.cachedBundle()
 	if c.pin != "" {
 		if curErr == nil && cur.Bundle.SHA256 == c.pin {
 			return Status{}, nil
 		}
-		changed, err := c.fetch(ctx, c.pin)
+		changed, err := c.fetch(ctx, c.pin, nil)
 		return Status{Checked: true, Changed: changed}, err
 	}
 	// With no cached bundle, the client asks at once and sends no ETag.
@@ -174,15 +177,16 @@ func (c *Client) Update(ctx context.Context) (Status, error) {
 	}
 	changed := false
 	if curErr != nil || latest.Bundle.SHA256 != cur.Bundle.SHA256 {
-		if changed, err = c.fetch(ctx, latest.Bundle.SHA256); err != nil {
+		if changed, err = c.fetch(ctx, latest.Bundle.SHA256, mb); err != nil {
 			return Status{}, err
 		}
 	}
 	return Status{Checked: true, Changed: changed}, c.writeState(state{ETag: etag, CheckedAt: c.now()})
 }
 
-// fetch reads, checks and stores the bundle of one hash.
-func (c *Client) fetch(ctx context.Context, sha string) (bool, error) {
+// fetch reads, checks and stores the bundle of one hash. newest is the
+// newest manifest of the host, when the hash comes from it.
+func (c *Client) fetch(ctx context.Context, sha string, newest []byte) (bool, error) {
 	mb, _, _, err := c.get(ctx, "manifests/"+sha+".json", "", maxManifestSize)
 	if err != nil {
 		return false, err
@@ -195,12 +199,27 @@ func (c *Client) fetch(ctx context.Context, sha string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	cur, curErr := c.cachedManifest()
-	if curErr == nil && cur.Bundle.SHA256 == sha {
+	if have, err := c.cachedBundle(); err == nil && have.Bundle.SHA256 == sha {
 		return false, nil
 	}
+	cur, curErr := c.cachedManifest()
 	if prev, ok := c.cachedSigned(cur, curErr); ok && c.pin == "" && signedAt.Before(prev.SignedAt) {
-		return false, fmt.Errorf("the host offers a bundle signed at %s, before the cached bundle of %s", signedAt.Format(time.RFC3339), prev.SignedAt.Format(time.RFC3339))
+		rollback := fmt.Errorf("the host offers a bundle signed at %s, before the cached bundle of %s", signedAt.Format(time.RFC3339), prev.SignedAt.Format(time.RFC3339))
+		// The host keeps the first signed pair of a bundle. When a bundle
+		// comes back after a newer one, only the newest signature of the
+		// host is newer than the cache.
+		nsig, _, _, err := c.get(ctx, SignatureFile, "", maxManifestSize)
+		if err != nil {
+			return false, fmt.Errorf("%w, and the newest signature is not available: %w", rollback, err)
+		}
+		nm, nAt, err := c.verifyPair(newest, nsig, sha)
+		if err != nil {
+			return false, fmt.Errorf("%w, and the newest signature fails: %w", rollback, err)
+		}
+		if nAt.Before(prev.SignedAt) {
+			return false, rollback
+		}
+		m, mb, sig, signedAt = nm, newest, nsig, nAt
 	}
 	file, _, _, err := c.get(ctx, m.Bundle.Path, "", m.Bundle.Size)
 	if err != nil {
@@ -228,7 +247,7 @@ func (c *Client) fetch(ctx context.Context, sha string) (bool, error) {
 			return false, err
 		}
 	}
-	if curErr == nil {
+	if curErr == nil && cur.Bundle.SHA256 != sha {
 		if err := os.Remove(filepath.Join(c.cacheDir, filepath.FromSlash(cur.Bundle.Path))); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return true, fmt.Errorf("remove the old bundle: %w", err)
 		}
@@ -330,6 +349,24 @@ func (c *Client) cachedManifest() (Manifest, error) {
 		return Manifest{}, err
 	}
 	return ParseManifest(mb)
+}
+
+// cachedBundle returns the cached manifest when the bundle file is there
+// with its hash. A lost or damaged bundle is no cache, so Update fetches it
+// at once.
+func (c *Client) cachedBundle() (Manifest, error) {
+	m, err := c.cachedManifest()
+	if err != nil {
+		return Manifest{}, err
+	}
+	file, err := os.ReadFile(filepath.Join(c.cacheDir, filepath.FromSlash(m.Bundle.Path)))
+	if err != nil {
+		return Manifest{}, err
+	}
+	if hexSHA256(file) != m.Bundle.SHA256 {
+		return Manifest{}, fmt.Errorf("the cached bundle %s is damaged", m.Bundle.SHA256)
+	}
+	return m, nil
 }
 
 // cachedSigned returns the signing time of the cached bundle. A record of

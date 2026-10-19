@@ -12,7 +12,7 @@ consumer uses the package and does not read the host itself.
 | --- | --- |
 | `bundles/<sha256>.jsonl.gz` | Every record, one compact JSON document per line, sorted by `id`. The name is the SHA-256 of the file. |
 | `manifest.json` | The manifest of the newest bundle. A client reads only the bundle hash from it. |
-| `manifest.sigstore.json` | Its signature, for people and for `cosign verify-blob`. |
+| `manifest.sigstore.json` | Its signature. A client reads it only for a bundle that comes back. See the client rules. |
 | `manifests/<sha256>.json` | The manifest of each bundle, by the SHA-256 of the bundle. |
 | `manifests/<sha256>.sigstore.json` | Its signature. A client trusts only this signed pair. |
 
@@ -59,6 +59,11 @@ A rename of the workflow file or of the branch breaks every client.
 - The signing time decides the order of two bundles. It is the time that the transparency log or a
   timestamp authority proves. A client keeps its cached bundle when a check fails, when the host is
   down, and when the host offers a bundle signed before the cached one.
+- A bundle can come back after a newer one, as when upstream removes a record and restores it. The
+  host keeps the first signed pair of that bundle, so the pair is older than the cache. The client
+  then checks `manifest.sigstore.json` against `manifest.json`. It takes the bundle when that
+  signature is valid, names the same bundle, and is newer than the cache.
+- A client with a lost or damaged cached bundle fetches it again at once.
 - A client gives the signing time of its bundle to its consumer. A consumer warns when it is old,
   because a host that serves an old bundle looks the same as a database with no new advisories.
 - A client can pin a bundle by its SHA-256. It then reads only the signed pair of that hash.

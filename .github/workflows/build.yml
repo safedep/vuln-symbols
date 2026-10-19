@@ -202,8 +202,10 @@ jobs:
 
       # A bundle and the signed pair of its manifest never change. When a
       # bundle comes back with the same hash, the host keeps the first pair,
-      # because a cache can hold it for a year. The newest manifest goes
-      # last, so a client never reads a manifest whose pair is not there.
+      # because a cache can hold it for a year. A client that has a newer
+      # bundle then checks the new manifest.sigstore.json. The newest
+      # manifest goes last, so a client never reads a manifest whose pair is
+      # not there.
       - name: Upload to R2
         if: steps.r2.outputs.ready == 'true'
         run: |

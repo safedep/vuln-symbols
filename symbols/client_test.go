@@ -316,3 +316,61 @@ func TestClientRefetchesALostManifest(t *testing.T) {
 	_, err = c.Load(context.Background())
 	assert.NoError(t, err)
 }
+
+// A lost or damaged bundle file is no cache. The client fetches it again at
+// once, and does not wait for the max age or for a new bundle on the host.
+func TestClientRefetchesALostBundle(t *testing.T) {
+	o := buildAt(t, "2026-04-01T00:00:00Z", "acme_widget::parse")
+	for _, tc := range []struct {
+		name   string
+		damage func(path string) error
+		opts   []symbols.Option
+	}{
+		{"a deleted bundle", os.Remove, nil},
+		{"a damaged bundle", func(path string) error { return os.WriteFile(path, []byte("damaged"), 0o600) }, nil},
+		{"a deleted pinned bundle", os.Remove, []symbols.Option{symbols.WithPin(o.Manifest.Bundle.SHA256)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			e.host.publish(o, day1)
+			c := e.client(t, tc.opts...)
+			_, err := c.Update(context.Background())
+			require.NoError(t, err)
+			require.NoError(t, tc.damage(filepath.Join(e.cache, o.Manifest.Bundle.Path)))
+
+			st, err := c.Update(context.Background())
+			require.NoError(t, err)
+			assert.True(t, st.Changed)
+			b, err := c.Load(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, o.Manifest.Bundle.SHA256, b.Info().ID)
+		})
+	}
+}
+
+// A bundle can come back after a newer one, as when upstream removes a
+// record and restores it. The host keeps the first signed pair of that
+// bundle, and the newest signature on the host is the new one. The client
+// takes the bundle with the newest signature.
+func TestClientTakesABundleThatComesBack(t *testing.T) {
+	e := newEnv(t)
+	first := buildAt(t, "2026-04-01T00:00:00Z", "acme_widget::parse")
+	e.host.publish(first, day0)
+	second := buildAt(t, "2026-04-20T00:00:00Z", "acme_widget::parse", "acme_widget::Buf::insert")
+	e.host.publish(second, day1)
+	c := e.client(t)
+	_, err := c.Update(context.Background())
+	require.NoError(t, err)
+
+	pair := e.host.files["manifests/"+first.Manifest.Bundle.SHA256+".sigstore.json"]
+	e.host.publish(first, day2)
+	e.host.files["manifests/"+first.Manifest.Bundle.SHA256+".sigstore.json"] = pair
+	e.now = e.now.Add(symbols.DefaultMaxAge + time.Minute)
+	st, err := c.Update(context.Background())
+	require.NoError(t, err)
+	assert.True(t, st.Changed)
+	b, err := c.Load(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, first.Manifest.Bundle.SHA256, b.Info().ID)
+	assert.Equal(t, day2, b.Info().SignedAt)
+}
