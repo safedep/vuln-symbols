@@ -79,6 +79,8 @@ Add a package only when a skill or a spec section needs it. Do not add empty pla
 
 ## Build and test
 
+`go.mod` and `.tool-versions` name Go 1.27.1. Change both together.
+
 ```bash
 go build ./...
 go vet ./...
