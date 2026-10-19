@@ -54,7 +54,12 @@ Each `affected` entry has exactly one range and one `fix`. An advisory with a 1.
 fix gives two `affected` entries, each with its own fix and its own account.
 
 - The **affected code** of an entry is the artifact of the last affected version of its range.
+- The **first affected code** of an entry is the artifact of the first affected version of its range.
 - The **fixed code** of an entry is the artifact of the first fixed version of its range.
+
+A symbol can change inside a range. A vulnerable function can have another name in an early
+release, or reach it by another path. So V1 and the derivation read both ends of the range. When a
+symbol does not resolve at both ends, the record splits the range into two `affected` entries.
 
 ## The changed-function list
 
@@ -70,17 +75,18 @@ The tool computes the list of changed functions. A person or a model never adds 
 - With `fix.kind: release-diff`, the two sides are the affected code and the fixed code.
 - Formatting and comments do not count as a change of code. A function whose only change is in
   comments is still listed, and the tool proves its exclusion reason `comment-only`.
-- The list holds only functions inside the artifact of the `affected` entry. A commit can change
-  files of other packages in the same repository. The tool lists those functions with the reason
-  `outside-package`, which it proves. When such a file belongs to another published package that the
-  advisory names, the record needs an `affected` entry for that package.
+- The list holds every function that the fix changed, in the whole repository. A commit can change
+  files of other packages in the same repository. Each function outside the artifact of the
+  `affected` entry gets the reason `outside-package`, which the tool proves. When such a file
+  belongs to another published package that the advisory names, the record needs an `affected`
+  entry for that package.
 
 ## The checks
 
 | Id | Check | Fails when |
 | --- | --- | --- |
 | V0 | Schema | The record is not a valid OSV document, or the extension breaks a rule of [record.md](record.md). |
-| V1 | Real symbols | A fix site or an entry symbol does not resolve to a definition in the affected code. A removed function resolves in the affected code too. |
+| V1 | Real symbols | A fix site or an entry symbol does not resolve to a definition in the affected code and in the first affected code. A removed function resolves in both too. |
 | V2 | Linked to the fix | A fix site is not on the changed-function list. |
 | V3 | Derived entry symbols | The entry symbols that the tool derives differ from `entry_symbols`. The tool also sets `complete`. |
 | V4 | Advisory match | An id in `aliases` does not exist in OSV. The package is not affected by that advisory. A range of the record is not inside a range of the advisory. The advisory changed after the `modified` time that the record stores. |
@@ -92,8 +98,12 @@ V6 has these rules:
 - `fix.repo` is the source repository of the package. The tool reads it from a `FIX` or `PACKAGE`
   reference of the advisory, or from the source URL that the registry publishes for the package. For
   Go, the module path names the repository. A fork fails.
-- With `fix.kind: commit`, each commit is an ancestor of the first fixed version. No commit is an
-  ancestor of the last affected version.
+- With `fix.kind: commit`, each commit is named by the advisory, as a `FIX` reference or as the
+  `fixed` event of a `GIT` range. A commit that only sits between the two releases is not enough,
+  because a release holds unrelated commits too. Each commit is also an ancestor of the first fixed
+  version, and not an ancestor of the last affected version.
+- When the advisory names no commit, the record uses `fix.kind: release-diff`. A contributor cannot
+  choose a commit that the advisory does not name.
 - With `fix.kind: release-diff`, `from` is the last affected version and `to` is the first fixed
   version of the range.
 
@@ -115,7 +125,10 @@ The tool proves these reasons:
 | `comment-only` | The parsed code is the same on both sides. |
 | `added` | The function does not exist in the affected code. |
 | `outside-package` | The file is not in the artifact of the `affected` entry. |
-| `generated` | The file carries the generated-code marker of its language, as the Go line `// Code generated … DO NOT EDIT.` |
+
+`generated` is a judged reason, not a proved one. A generated-code marker proves where a file came
+from. It does not prove that the change is unrelated to the vulnerability, because a fix can
+regenerate a parser or a protocol codec. A reviewer reads each `generated` exclusion.
 
 `propose` writes proved exclusions with no model. A model sorts only what is left. So a model can
 make one kind of mistake: a wrong account for a changed function. A wrong fix site is still linked
@@ -124,7 +137,8 @@ it.
 
 ## Entry symbols
 
-The tool derives the entry symbols from the call graph of the affected code.
+The tool derives the entry symbols from the call graph of the affected code and of the first
+affected code. The entry symbols are the union of the two results.
 
 - An entry symbol is an exported symbol from which the package call graph reaches a fix site. Reach
   includes the symbol itself, so an exported fix site is its own entry symbol.

@@ -9,7 +9,7 @@ add it here in the same pull request.
 | **advisory** | The upstream vulnerability report that a record adds symbols to, as `GHSA-…`, `CVE-…`, `GO-…` or `RUSTSEC-…`. A record lists the advisory ids in `aliases`. |
 | **symbol** | A function or a method, written in the native notation of its language. See "Symbol notation" in [spec/record.md](spec/record.md). |
 | **fix** | The code change that removes the vulnerability: one or more fix commits, or the difference between the last affected release and the first fixed release. |
-| **changed function** | A function whose parsed code differs between the affected code and the fixed code. The tool lists them. A person or a model never adds one. |
+| **changed function** | A function whose parsed code the fix changed, or that the fix added or removed. The tool lists them. A person or a model never adds one. |
 | **fix site** | A changed function that holds the vulnerable code. It can be internal to the package. |
 | **exclusion** | A changed function that is not a fix site, with a reason. |
 | **account** | The role of one changed function in a record: fix site or exclusion. Every changed function has exactly one account. |

@@ -70,7 +70,7 @@ These rules hold for every tool, skill and agent in this repository.
 | `docs/spec/examples/` | Synthetic example records | Draft |
 | `docs/glossary.md` | One word for one concept | Draft |
 | `records/<ecosystem>/<id>.json` | Community records, one OSV document each | Empty |
-| `symbols/` | The public Go API: record type, `Embedded()`, `Read()` | Planned |
+| `symbols/` | The public Go API: record type, `Embedded()`, `Read()`. Not created yet. | Planned |
 | `cmd/vsym/` | The CLI: `candidates`, `derive`, `verify`, `build`. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Planned |
 | `internal/` | Fetch, diff, derive, verify, normalize | Planned |
 | `.claude/skills/` | Workflows for agents | Draft |

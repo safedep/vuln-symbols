@@ -76,11 +76,11 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | `method` | `upstream`, `patch-analysis` or `manual`. |
 | `coverage` | `exact` or `broad`. A record is `broad` when `entry_symbols.complete` is false, when it names no fix site, or when it has more than 50 fix sites. |
 | `advisory_modified` | A map from each id in `aliases` to the `modified` time of the advisory that `vsym candidates` read. Verification fails when the advisory changed later. |
-| `fix` | The fix that the record reads, for the one range of the entry. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
+| `fix` | The fix that the record reads, for the one range of the entry. A commit must be one that the advisory names. With no named commit, the fix is a `release-diff`. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
 | `fix_sites` | The fix sites. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. The Go vulnerability database lists the fix sites and their exported callers together, so an upstream Go record also holds callers. |
 | `changed_functions` | The account of every function that the fix changed. Required for a community record. Absent for an upstream record. |
 | `changed_functions[].account` | `fix-site` or `excluded`. |
-| `changed_functions[].reason` | For an exclusion. Proved by the tool: `test`, `comment-only`, `added`, `outside-package`, `generated`. Judged: `refactor`, `logging`, `other`. |
+| `changed_functions[].reason` | For an exclusion. Proved by the tool: `test`, `comment-only`, `added`, `outside-package`. Judged: `generated`, `refactor`, `logging`, `other`. |
 | `changed_functions[].proof` | `tool` when `verify` proves the exclusion. `judgment` when a person or a model decided. A proved reason must have `proof: tool`. |
 | `changed_functions[].note` | Required when `proof` is `judgment`. One or two sentences for the reviewer. |
 | `entry_symbols` | Derived by the tool. Never written by hand. `complete` is false when the derivation hit an unresolved call. |

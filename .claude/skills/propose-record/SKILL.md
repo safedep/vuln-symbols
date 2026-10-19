@@ -18,8 +18,9 @@ Read [docs/spec/record.md](../../../docs/spec/record.md) and
 2. Read the advisory from OSV. Note the ecosystem, the package, the ranges and the `FIX` references.
    Write one `affected` entry for each range.
 3. Choose the fix:
-   - A `FIX` reference to a commit gives `fix.kind: commit`.
-   - With no commit, use `fix.kind: release-diff` between the last affected and the first fixed
+   - A commit that the advisory names, as a `FIX` reference or a `GIT` range event, gives
+     `fix.kind: commit`. Never choose a commit that the advisory does not name.
+   - With no named commit, use `fix.kind: release-diff` between the last affected and the first fixed
      version. Say in the pull request that the list of changed functions is long.
 4. Run `vsym candidates <advisory-id>` with the fix. It fetches the hashed artifacts, lists every
    changed function, and writes the proved exclusions. When a changed file belongs to another
