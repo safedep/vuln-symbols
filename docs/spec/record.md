@@ -136,9 +136,10 @@ owns, and skips a withdrawn advisory and an advisory with no symbol. An upstream
 - has no `fix`, no `changed_functions` and no `advisory_modified`
 - has no `entry_symbols` in format 1. A later builder derives them.
 
-The source names its symbols in full when every Go import of the entry lists its symbols, and when a
-RustSec entry lists its functions. A Go import with no symbol list affects the whole package, so its
-entry is `broad`.
+The Go vulnerability database names its symbols in full when every import of the entry lists its
+symbols. A Go import with no symbol list affects the whole package, so its entry is `broad`. RustSec
+lists the affected functions with no promise that the list is complete, so every RustSec entry is
+`broad`. A RustSec entry gives "called", and never "not called".
 
 An upstream record is not a file in `records/`. It exists only in the bundle. See
 [bundle.md](bundle.md).

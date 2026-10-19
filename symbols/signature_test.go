@@ -12,7 +12,7 @@ import (
 func TestSignatureNeedsTheBuildWorkflow(t *testing.T) {
 	vs, err := ca.NewVirtualSigstore()
 	require.NoError(t, err)
-	v, err := newSigstoreVerifier("", false)
+	v, err := newSigstoreVerifier("", "")
 	require.NoError(t, err)
 	// The virtual Sigstore issues no certificate timestamp. The production
 	// options also need one.
@@ -34,9 +34,10 @@ func TestSignatureNeedsTheBuildWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			entity, err := vs.Sign(tc.identity, tc.issuer, tc.artifact)
 			require.NoError(t, err)
-			err = v.verifyEntity(vs, entity, manifest)
+			signed, err := v.verifyEntity(vs, entity, manifest)
 			if tc.ok {
 				assert.NoError(t, err)
+				assert.False(t, signed.IsZero(), "a valid signature has a verified time")
 			} else {
 				assert.Error(t, err)
 			}
@@ -47,9 +48,10 @@ func TestSignatureNeedsTheBuildWorkflow(t *testing.T) {
 func TestPublicGoodOptionsNeedEveryProof(t *testing.T) {
 	vs, err := ca.NewVirtualSigstore()
 	require.NoError(t, err)
-	v, err := newSigstoreVerifier("", false)
+	v, err := newSigstoreVerifier("", "")
 	require.NoError(t, err)
 	entity, err := vs.Sign(SignerIdentity, SignerIssuer, []byte("m"))
 	require.NoError(t, err)
-	assert.Error(t, v.verifyEntity(vs, entity, []byte("m")), "a signature with no certificate timestamp fails the production options")
+	_, err = v.verifyEntity(vs, entity, []byte("m"))
+	assert.Error(t, err, "a signature with no certificate timestamp fails the production options")
 }

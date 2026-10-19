@@ -16,13 +16,14 @@ import (
 
 // DefaultBaseURL is the public host of the bundle. The layout under it:
 //
-//	manifest.json                  the manifest of the newest bundle
-//	manifest.sigstore.json         its signature
-//	manifests/<sha256>.json        the manifest of each bundle, by bundle hash
-//	manifests/<sha256>.sigstore.json
-//	bundles/<sha256>.jsonl.gz      each bundle, which never changes
+//	manifest.json                     names the newest bundle
+//	manifests/<sha256>.json           the manifest of each bundle, by bundle hash
+//	manifests/<sha256>.sigstore.json  its signature
+//	bundles/<sha256>.jsonl.gz         each bundle
 //
-// A breaking change of the format gets a new base path, as v2/.
+// Only manifest.json changes. The client reads it to learn the hash of the
+// newest bundle, and then trusts only the signed pair under manifests/. A
+// breaking change of the format gets a new base path, as v2/.
 const DefaultBaseURL = "https://vuln-data.safedep.io/v1/"
 
 // DefaultMaxAge is how long a client waits before it asks the host again.
@@ -33,19 +34,24 @@ const maxManifestSize = 1 << 20
 // ErrNoBundle means the client has no verified bundle yet.
 var ErrNoBundle = errors.New("no symbol bundle yet: update with network access, or use a local bundle")
 
-// Client fetches, verifies and caches the bundle. Only a bundle whose
-// manifest has a valid signature from the build workflow reaches the cache,
-// so Load reads the cache with a hash check and no network.
+// Client fetches, verifies and caches the bundle.
+//
+// The cache directory is trusted. Update writes a bundle there only after
+// it checks the signature, and Load reads it back with a hash check and no
+// network. A process that can write the cache directory can change the
+// records, as it can change any other cache of its consumer. A consumer keeps
+// the directory private to its user.
 type Client struct {
-	baseURL  string
-	cacheDir string
-	localDir string
-	pin      string
-	offline  bool
-	maxAge   time.Duration
-	http     *http.Client
-	verifier verifier
-	now      func() time.Time
+	baseURL     string
+	cacheDir    string
+	localDir    string
+	trustedRoot string
+	pin         string
+	offline     bool
+	maxAge      time.Duration
+	http        *http.Client
+	verifier    verifier
+	now         func() time.Time
 }
 
 // Option sets an option of a client.
@@ -58,6 +64,10 @@ func WithCacheDir(dir string) Option { return func(c *Client) { c.cacheDir = dir
 // host, as a mirror for a network with no access to the host. The client
 // still checks the signature.
 func WithLocalBundle(dir string) Option { return func(c *Client) { c.localDir = dir } }
+
+// WithTrustedRoot reads the Sigstore trusted root from a file, in place of
+// TUF. A client with no network and a local bundle needs it.
+func WithTrustedRoot(path string) Option { return func(c *Client) { c.trustedRoot = path } }
 
 // WithPin keeps the client on one bundle, by the SHA-256 of the bundle file.
 func WithPin(id string) Option { return func(c *Client) { c.pin = id } }
@@ -92,7 +102,7 @@ func New(opts ...Option) (*Client, error) {
 		c.baseURL += "/"
 	}
 	if c.verifier == nil {
-		v, err := newSigstoreVerifier(c.cacheDir, c.offline || c.localDir != "")
+		v, err := newSigstoreVerifier(c.cacheDir, c.trustedRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -114,22 +124,40 @@ type state struct {
 	CheckedAt time.Time `json:"checked_at"`
 }
 
-const stateFile = "state.json"
+// signed records the verified signing time of the cached bundle.
+type signed struct {
+	Bundle   string    `json:"bundle_sha256"`
+	SignedAt time.Time `json:"signed_at"`
+}
+
+const (
+	stateFile  = "state.json"
+	signedFile = "signed.json"
+)
 
 // Update asks the host for a newer bundle, at most once per max age. It
 // stores a bundle only after it checks the signature, the hashes and the
-// time. A manifest older than the cached one is a rollback, and the client
-// keeps the cached bundle.
+// signing time. A bundle signed before the cached one is a rollback, and the
+// client keeps the cached bundle.
 func (c *Client) Update(ctx context.Context) (Status, error) {
 	if c.offline || c.localDir != "" {
 		return Status{}, nil
 	}
+	cur, curErr := c.cachedManifest()
 	if c.pin != "" {
-		return c.updatePin(ctx)
+		if curErr == nil && cur.Bundle.SHA256 == c.pin {
+			return Status{}, nil
+		}
+		changed, err := c.fetch(ctx, c.pin)
+		return Status{Checked: true, Changed: changed}, err
 	}
-	st := c.readState()
-	if !st.CheckedAt.IsZero() && c.now().Sub(st.CheckedAt) < c.maxAge {
-		return Status{}, nil
+	// With no cached bundle, the client asks at once and sends no ETag.
+	st := state{}
+	if curErr == nil {
+		st = c.readState()
+		if !st.CheckedAt.IsZero() && c.now().Sub(st.CheckedAt) < c.maxAge {
+			return Status{}, nil
+		}
 	}
 	mb, etag, notModified, err := c.get(ctx, ManifestFile, st.ETag, maxManifestSize)
 	if err != nil {
@@ -138,51 +166,41 @@ func (c *Client) Update(ctx context.Context) (Status, error) {
 	if notModified {
 		return Status{Checked: true}, c.writeState(state{ETag: st.ETag, CheckedAt: c.now()})
 	}
-	sig, _, _, err := c.get(ctx, SignatureFile, "", maxManifestSize)
+	// The newest manifest is not trusted. The client reads only the hash of
+	// the bundle from it, and checks the signed pair of that hash.
+	latest, err := ParseManifest(mb)
 	if err != nil {
 		return Status{}, err
 	}
-	changed, err := c.accept(ctx, mb, sig)
-	if err != nil {
-		return Status{}, err
+	changed := false
+	if curErr != nil || latest.Bundle.SHA256 != cur.Bundle.SHA256 {
+		if changed, err = c.fetch(ctx, latest.Bundle.SHA256); err != nil {
+			return Status{}, err
+		}
 	}
 	return Status{Checked: true, Changed: changed}, c.writeState(state{ETag: etag, CheckedAt: c.now()})
 }
 
-func (c *Client) updatePin(ctx context.Context) (Status, error) {
-	if m, err := c.cachedManifest(); err == nil && m.Bundle.SHA256 == c.pin {
-		return Status{}, nil
-	}
-	mb, _, _, err := c.get(ctx, "manifests/"+c.pin+".json", "", maxManifestSize)
-	if err != nil {
-		return Status{}, err
-	}
-	sig, _, _, err := c.get(ctx, "manifests/"+c.pin+".sigstore.json", "", maxManifestSize)
-	if err != nil {
-		return Status{}, err
-	}
-	changed, err := c.accept(ctx, mb, sig)
-	return Status{Checked: true, Changed: changed}, err
-}
-
-// accept checks a manifest and its bundle, and stores both.
-func (c *Client) accept(ctx context.Context, mb, sig []byte) (bool, error) {
-	if err := c.verifier.verify(mb, sig); err != nil {
-		return false, err
-	}
-	m, err := ParseManifest(mb)
+// fetch reads, checks and stores the bundle of one hash.
+func (c *Client) fetch(ctx context.Context, sha string) (bool, error) {
+	mb, _, _, err := c.get(ctx, "manifests/"+sha+".json", "", maxManifestSize)
 	if err != nil {
 		return false, err
 	}
-	if c.pin != "" && m.Bundle.SHA256 != c.pin {
-		return false, fmt.Errorf("the manifest names bundle %s, not the pinned %s", m.Bundle.SHA256, c.pin)
+	sig, _, _, err := c.get(ctx, "manifests/"+sha+".sigstore.json", "", maxManifestSize)
+	if err != nil {
+		return false, err
+	}
+	m, signedAt, err := c.verifyPair(mb, sig, sha)
+	if err != nil {
+		return false, err
 	}
 	cur, curErr := c.cachedManifest()
-	if curErr == nil && c.pin == "" && m.AsOf.Before(cur.AsOf) {
-		return false, fmt.Errorf("the host offers a bundle of %s, older than the cached bundle of %s", m.AsOf.Format(time.RFC3339), cur.AsOf.Format(time.RFC3339))
-	}
-	if curErr == nil && m.Bundle.SHA256 == cur.Bundle.SHA256 {
+	if curErr == nil && cur.Bundle.SHA256 == sha {
 		return false, nil
+	}
+	if prev, ok := c.cachedSigned(cur, curErr); ok && c.pin == "" && signedAt.Before(prev.SignedAt) {
+		return false, fmt.Errorf("the host offers a bundle signed at %s, before the cached bundle of %s", signedAt.Format(time.RFC3339), prev.SignedAt.Format(time.RFC3339))
 	}
 	file, _, _, err := c.get(ctx, m.Bundle.Path, "", m.Bundle.Size)
 	if err != nil {
@@ -191,16 +209,24 @@ func (c *Client) accept(ctx context.Context, mb, sig []byte) (bool, error) {
 	if _, err := ReadBundle(m, file); err != nil {
 		return false, err
 	}
-	// The bundle goes first and the manifest last, so a reader that runs
-	// at the same time sees the old pair or the new pair.
-	if err := writeAtomic(filepath.Join(c.cacheDir, filepath.FromSlash(m.Bundle.Path)), file); err != nil {
+	rec, err := json.Marshal(signed{Bundle: sha, SignedAt: signedAt})
+	if err != nil {
 		return false, err
 	}
-	if err := writeAtomic(filepath.Join(c.cacheDir, SignatureFile), sig); err != nil {
-		return false, err
-	}
-	if err := writeAtomic(filepath.Join(c.cacheDir, ManifestFile), mb); err != nil {
-		return false, err
+	// The manifest goes last, so a reader that runs at the same time sees
+	// the old bundle or the new bundle, and never a manifest with no bundle.
+	for _, f := range []struct {
+		name string
+		data []byte
+	}{
+		{filepath.FromSlash(m.Bundle.Path), file},
+		{SignatureFile, sig},
+		{signedFile, rec},
+		{ManifestFile, mb},
+	} {
+		if err := writeAtomic(filepath.Join(c.cacheDir, f.name), f.data); err != nil {
+			return false, err
+		}
 	}
 	if curErr == nil {
 		if err := os.Remove(filepath.Join(c.cacheDir, filepath.FromSlash(cur.Bundle.Path))); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -208,6 +234,23 @@ func (c *Client) accept(ctx context.Context, mb, sig []byte) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// verifyPair checks the signature of a manifest and that the manifest names
+// the expected bundle.
+func (c *Client) verifyPair(mb, sig []byte, sha string) (Manifest, time.Time, error) {
+	signedAt, err := c.verifier.verify(mb, sig)
+	if err != nil {
+		return Manifest{}, time.Time{}, err
+	}
+	m, err := ParseManifest(mb)
+	if err != nil {
+		return Manifest{}, time.Time{}, err
+	}
+	if m.Bundle.SHA256 != sha {
+		return Manifest{}, time.Time{}, fmt.Errorf("the signed manifest names bundle %s, not %s", m.Bundle.SHA256, sha)
+	}
+	return m, signedAt, nil
 }
 
 // Load returns the verified bundle: the local bundle when the client has
@@ -227,30 +270,58 @@ func (c *Client) Load(ctx context.Context) (*Bundle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read the cached bundle: %w", err)
 	}
-	return ReadBundle(m, file)
+	b, err := ReadBundle(m, file)
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := c.cachedSigned(m, nil); ok {
+		b.signedAt = s.SignedAt
+	}
+	return b, nil
 }
 
 func (c *Client) loadLocal() (*Bundle, error) {
-	mb, err := os.ReadFile(filepath.Join(c.localDir, ManifestFile))
-	if err != nil {
-		return nil, fmt.Errorf("read the local manifest: %w", err)
+	read := func(name string) ([]byte, error) {
+		b, err := os.ReadFile(filepath.Join(c.localDir, filepath.FromSlash(name)))
+		if err != nil {
+			return nil, fmt.Errorf("read the local bundle: %w", err)
+		}
+		return b, nil
 	}
-	sig, err := os.ReadFile(filepath.Join(c.localDir, SignatureFile))
-	if err != nil {
-		return nil, fmt.Errorf("read the local signature: %w", err)
-	}
-	if err := c.verifier.verify(mb, sig); err != nil {
-		return nil, err
-	}
-	m, err := ParseManifest(mb)
+	mb, err := read(ManifestFile)
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.ReadFile(filepath.Join(c.localDir, filepath.FromSlash(m.Bundle.Path)))
+	latest, err := ParseManifest(mb)
 	if err != nil {
-		return nil, fmt.Errorf("read the local bundle: %w", err)
+		return nil, err
 	}
-	return ReadBundle(m, file)
+	sha := latest.Bundle.SHA256
+	if c.pin != "" {
+		sha = c.pin
+	}
+	pair, err := read("manifests/" + sha + ".json")
+	if err != nil {
+		return nil, err
+	}
+	sig, err := read("manifests/" + sha + ".sigstore.json")
+	if err != nil {
+		return nil, err
+	}
+	m, signedAt, err := c.verifyPair(pair, sig, sha)
+	if err != nil {
+		return nil, err
+	}
+	file, err := read(m.Bundle.Path)
+	if err != nil {
+		return nil, err
+	}
+	b, err := ReadBundle(m, file)
+	if err != nil {
+		return nil, err
+	}
+	b.signedAt = signedAt
+	return b, nil
 }
 
 func (c *Client) cachedManifest() (Manifest, error) {
@@ -259,6 +330,23 @@ func (c *Client) cachedManifest() (Manifest, error) {
 		return Manifest{}, err
 	}
 	return ParseManifest(mb)
+}
+
+// cachedSigned returns the signing time of the cached bundle. A record of
+// another bundle is stale, as after a crash between two writes.
+func (c *Client) cachedSigned(cur Manifest, curErr error) (signed, bool) {
+	if curErr != nil {
+		return signed{}, false
+	}
+	b, err := os.ReadFile(filepath.Join(c.cacheDir, signedFile))
+	if err != nil {
+		return signed{}, false
+	}
+	var s signed
+	if json.Unmarshal(b, &s) != nil || s.Bundle != cur.Bundle.SHA256 {
+		return signed{}, false
+	}
+	return s, true
 }
 
 func (c *Client) readState() state {
@@ -319,22 +407,29 @@ func (c *Client) get(ctx context.Context, name, etag string, limit int64) (body 
 	return body, resp.Header.Get("ETag"), false, nil
 }
 
+// writeAtomic writes a file with a rename, after a sync, so a crash leaves
+// the old file or the new file. The cache is private to its user.
 func writeAtomic(name string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(name), filepath.Base(name)+".tmp*")
 	if err != nil {
 		return err
 	}
-	if _, err := tmp.Write(data); err != nil {
+	cleanup := func(err error) error {
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
 		return err
 	}
+	if _, err := tmp.Write(data); err != nil {
+		return cleanup(err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return cleanup(err)
+	}
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmp.Name())
-		return err
+		return cleanup(err)
 	}
 	return os.Rename(tmp.Name(), name)
 }

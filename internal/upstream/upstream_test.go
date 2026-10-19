@@ -36,6 +36,7 @@ func TestConvertRust(t *testing.T) {
 	require.True(t, ok)
 	assert.Empty(t, rec.Aliases, "a RustSec advisory can have no alias, and the record keeps the source id")
 	assert.Equal(t, symbols.LanguageRust, rec.Affected[0].DatabaseSpecific.VulnSymbols.Language)
+	assert.Equal(t, symbols.CoverageBroad, rec.Affected[0].DatabaseSpecific.VulnSymbols.Coverage, "RustSec does not promise a complete function list")
 	assert.Equal(t, "CC0-1.0", rec.DatabaseSpecific.License)
 	assert.Equal(t, []string{"acme_widget::Buf::insert", "acme_widget::parse"}, rec.Affected[0].Names())
 }

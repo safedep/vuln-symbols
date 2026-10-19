@@ -20,6 +20,10 @@ type Source struct {
 	Language    string
 	License     string
 	Attribution string
+	// exact marks a source that promises a complete symbol list. RustSec
+	// lists the affected functions with no such promise, so its entries are
+	// broad, and no consumer says "not called" from them.
+	exact bool
 	// recordURL gives the page of one advisory.
 	recordURL func(id string) string
 	// names gives the symbols of one affected entry, and whether the
@@ -39,6 +43,7 @@ var Go = Source{
 	Language:    symbols.LanguageGo,
 	License:     "CC-BY-4.0",
 	Attribution: "Go vulnerability database (https://vuln.go.dev) by the Go Authors, licensed under CC-BY-4.0",
+	exact:       true,
 	recordURL:   func(id string) string { return "https://pkg.go.dev/vuln/" + id },
 	names:       goNames,
 }
@@ -146,7 +151,7 @@ func Convert(src Source, data []byte) (symbols.Record, bool, error) {
 				Format:   symbols.Format,
 				Language: src.Language,
 				Methods:  []string{symbols.MethodUpstream},
-				Coverage: coverage(names, complete),
+				Coverage: coverage(names, complete && src.exact),
 				FixSites: toSymbols(names),
 				Review:   symbols.Review{State: symbols.ReviewVerified},
 			}},

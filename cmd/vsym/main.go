@@ -14,6 +14,7 @@ import (
 	"github.com/safedep/vuln-symbols/internal/build"
 	"github.com/safedep/vuln-symbols/internal/osvexport"
 	"github.com/safedep/vuln-symbols/internal/upstream"
+	"github.com/safedep/vuln-symbols/symbols"
 )
 
 func main() {
@@ -25,13 +26,15 @@ func main() {
 
 func run(ctx context.Context, args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: vsym build -out <dir> [-export <ecosystem>=<zip>]")
+		return fmt.Errorf("usage: vsym build -out <dir> [-export <ecosystem>=<zip>] | vsym check -dir <dir>")
 	}
 	switch args[0] {
 	case "build":
 		return runBuild(ctx, args[1:], out)
+	case "check":
+		return runCheck(ctx, args[1:], out)
 	}
-	return fmt.Errorf("unknown command %q. The commands are: build", args[0])
+	return fmt.Errorf("unknown command %q. The commands are: build, check", args[0])
 }
 
 // exports maps an OSV ecosystem to a local zip, for a build with no
@@ -83,5 +86,30 @@ func runBuild(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintf(out, "built %d records, bundle %s, %d bytes\n", o.Manifest.Records, o.Manifest.Bundle.SHA256, o.Manifest.Bundle.Size)
+	return err
+}
+
+// runCheck reads a directory with the layout of the host through the
+// client, as a consumer does. The workflow runs it on the signed build
+// before it publishes, so the client code accepts what cosign wrote.
+func runCheck(ctx context.Context, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	dir := fs.String("dir", "", "directory with the layout of the host")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return fmt.Errorf("check needs -dir")
+	}
+	c, err := symbols.New(symbols.WithLocalBundle(*dir))
+	if err != nil {
+		return err
+	}
+	b, err := c.Load(ctx)
+	if err != nil {
+		return err
+	}
+	info := b.Info()
+	_, err = fmt.Fprintf(out, "bundle %s: %d records, signed at %s\n", info.ID, info.Records, info.SignedAt.Format(time.RFC3339))
 	return err
 }

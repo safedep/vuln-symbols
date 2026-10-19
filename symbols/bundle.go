@@ -10,14 +10,18 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
+	"time"
 
 	packagev1 "buf.build/gen/go/safedep/api/protocolbuffers/go/safedep/messages/package/v1"
 	pb "github.com/safedep/dry/api/pb"
+	"golang.org/x/mod/semver"
 )
 
 // Bundle is a verified set of records with an index by package.
 type Bundle struct {
 	manifest Manifest
+	signedAt time.Time
 	records  []Record
 	byName   map[string][]int
 }
@@ -37,12 +41,16 @@ type Answer struct {
 	Affected *Affected
 }
 
-// Info describes a bundle.
+// Info describes a bundle. SignedAt is the verified time of the signature.
+// It is zero for a bundle that a client did not verify. A consumer warns
+// when it is old, because a host that stops serving new bundles looks the
+// same as a database with no new advisories.
 type Info struct {
-	ID      string
-	AsOf    string
-	Records int
-	Sources []Source
+	ID       string
+	AsOf     time.Time
+	SignedAt time.Time
+	Records  int
+	Sources  []Source
 }
 
 // ReadBundle reads a gzip file of JSON lines and checks it against the
@@ -122,7 +130,7 @@ func nameKey(p Package) (string, bool) {
 // the SHA-256 of the bundle file, the name of the bundle on the host and
 // the value of a pin.
 func (b *Bundle) Info() Info {
-	return Info{ID: b.manifest.Bundle.SHA256, AsOf: b.manifest.AsOf.UTC().Format("2006-01-02T15:04:05Z"), Records: len(b.records), Sources: slices.Clone(b.manifest.Sources)}
+	return Info{ID: b.manifest.Bundle.SHA256, AsOf: b.manifest.AsOf, SignedAt: b.signedAt, Records: len(b.records), Sources: slices.Clone(b.manifest.Sources)}
 }
 
 // Records returns every record of the bundle.
@@ -175,7 +183,13 @@ func rangeAffects(v pb.PackageVersion, rg Range) (affected, ordered bool) {
 		return false, false
 	}
 	eco := v.Ecosystem()
+	if !orderable(eco, v.RawVersion()) {
+		return false, false
+	}
 	cmp := func(other string) (int, bool) {
+		if !orderable(eco, other) {
+			return 0, false
+		}
 		c, err := pb.CompareVersions(eco, v.RawVersion(), other)
 		return c, err == nil
 	}
@@ -210,6 +224,21 @@ func rangeAffects(v pb.PackageVersion, rg Range) (affected, ordered bool) {
 		}
 	}
 	return affected, true
+}
+
+// orderable reports whether a version has a place in the order of its
+// ecosystem. dry orders any string, also a string that is not a version,
+// and puts it below every version. A range that starts above 0 would then
+// miss the version, so a Go or a Cargo version must be valid semver.
+func orderable(eco packagev1.Ecosystem, version string) bool {
+	switch eco {
+	case packagev1.Ecosystem_ECOSYSTEM_GO, packagev1.Ecosystem_ECOSYSTEM_CARGO:
+		if !strings.HasPrefix(version, "v") {
+			version = "v" + version
+		}
+		return semver.IsValid(version)
+	}
+	return true
 }
 
 // sortedEvents orders the events by their version, as the OSV rule needs.
