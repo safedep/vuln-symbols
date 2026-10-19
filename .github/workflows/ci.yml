@@ -1,0 +1,51 @@
+name: CI
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+
+      - name: Module tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+
+      # The repository has no Go package until the first tool lands, and go
+      # vet and go test fail when ./... matches nothing.
+      - name: Vet and test
+        run: |
+          if [ -z "$(go list ./...)" ]; then
+            echo "No Go package yet"
+            exit 0
+          fi
+          go vet ./...
+          go test ./... -count=1
+
+      - name: Check JSON examples
+        run: |
+          for f in docs/spec/examples/*.json; do
+            jq empty "$f"
+          done

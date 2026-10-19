@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.9.2",
+  "id": "VSYM-0000-0001",
+  "modified": "2026-10-19T00:00:00Z",
+  "published": "2026-10-19T00:00:00Z",
+  "aliases": ["GHSA-xxxx-xxxx-xxxx"],
+  "summary": "Synthetic example. The package and the advisory do not exist.",
+  "affected": [
+    {
+      "package": { "ecosystem": "Go", "name": "example.com/acme/widget" },
+      "ranges": [
+        { "type": "SEMVER", "events": [{ "introduced": "0" }, { "fixed": "1.4.2" }] }
+      ],
+      "database_specific": {
+        "vuln_symbols": {
+          "format": 1,
+          "language": "go",
+          "methods": ["patch-analysis"],
+          "coverage": "exact",
+          "advisory_modified": { "GHSA-xxxx-xxxx-xxxx": "2026-10-18T00:00:00Z" },
+          "fix": {
+            "kind": "commit",
+            "repo": "https://example.com/acme/widget",
+            "commits": ["0000000000000000000000000000000000000001"]
+          },
+          "fix_sites": [{ "name": "example.com/acme/widget/parse.readHeader" }],
+          "changed_functions": [
+            {
+              "symbol": { "name": "example.com/acme/widget/parse.readHeader" },
+              "file": "parse/header.go",
+              "account": "fix-site"
+            },
+            {
+              "symbol": { "name": "example.com/acme/widget/parse.checkHeaderLen" },
+              "file": "parse/limits.go",
+              "account": "excluded",
+              "reason": "added",
+              "proof": "tool"
+            },
+            {
+              "symbol": { "name": "example.com/acme/widget/parse.TestReadHeader" },
+              "file": "parse/header_test.go",
+              "account": "excluded",
+              "reason": "test",
+              "proof": "tool"
+            },
+            {
+              "symbol": { "name": "example.com/acme/widget/parse.logHeader" },
+              "file": "parse/log.go",
+              "account": "excluded",
+              "reason": "logging",
+              "proof": "judgment",
+              "note": "The fix adds the header length to a debug log line. The function reads no input."
+            }
+          ],
+          "entry_symbols": {
+            "symbols": [{ "name": "example.com/acme/widget/parse.Decode" }],
+            "complete": true,
+            "tool": "vsym 0.0.0"
+          },
+          "review": { "state": "unreviewed", "reviewers": [] }
+        }
+      }
+    }
+  ],
+  "references": [
+    { "type": "FIX", "url": "https://example.com/acme/widget/commit/0000000000000000000000000000000000000001" }
+  ],
+  "credits": [{ "name": "Example Contributor", "type": "ANALYST" }],
+  "database_specific": { "license": "unset" }
+}
