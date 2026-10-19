@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.7.0",
+  "schema_version": "1.9.2",
   "id": "VSYM-0000-0001",
   "modified": "2026-10-19T00:00:00Z",
   "published": "2026-10-19T00:00:00Z",
@@ -17,6 +17,7 @@
           "language": "go",
           "method": "patch-analysis",
           "coverage": "exact",
+          "advisory_modified": { "GHSA-xxxx-xxxx-xxxx": "2026-10-18T00:00:00Z" },
           "fix": {
             "kind": "commit",
             "repo": "https://example.com/acme/widget",

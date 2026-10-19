@@ -25,6 +25,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+
+      - name: Module tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+
       - name: Vet
         run: go vet ./...
 

@@ -7,7 +7,11 @@ is decided, it takes no contribution from outside SafeDep.
 
 Each commit carries a `Signed-off-by` line, as the [Developer Certificate of
 Origin](https://developercertificate.org/) asks. `git commit -s` adds it. The line says that you have
-the right to submit the change under the license of the project.
+the right to submit the change under its license.
+
+- Code is under Apache-2.0.
+- A record is under the license that its `database_specific.license` names.
+- Until the record license is decided, only SafeDep staff add records.
 
 ## A record
 

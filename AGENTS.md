@@ -15,7 +15,7 @@ tooling that builds it.
 - This project mirrors the upstream symbols, and takes community records where no upstream home
   exists.
 
-The value of the project is one property: **a record is cheap and deterministic to verify.** To find the
+The value of the project is one property. **A record is cheap and deterministic to verify.** To find the
 vulnerable function in a fix can need judgment, and a contributor can use an LLM for that. To check
 a record must need no judgment. CI proves that each symbol is real, that the fix changed it, and that
 every function the fix changed has an account. Read [docs/spec/verification.md](docs/spec/verification.md)
@@ -45,8 +45,8 @@ These rules hold for every tool, skill and agent in this repository.
 
 1. **Nothing in the verification path calls a model.** `verify`, `derive` and `build` are
    deterministic. The same inputs give the same output bytes. An LLM may help only in `propose`.
-2. **A model picks from a list. It never invents a symbol.** `propose` first lists the functions that
-   the fix changed, with no model. A model may only sort that list into fix sites and exclusions.
+2. **A model picks from a list. It never invents a symbol.** `vsym candidates` first lists the
+   functions that the fix changed, with no model. A model may only sort that list into fix sites and exclusions.
    `verify` rejects a fix site that is not on the list.
 3. **No person and no model writes `entry_symbols`.** The tool derives them from the package call
    graph. CI recomputes them and fails on a difference.
@@ -71,7 +71,7 @@ These rules hold for every tool, skill and agent in this repository.
 | `docs/glossary.md` | One word for one concept | Draft |
 | `records/<ecosystem>/<id>.json` | Community records, one OSV document each | Empty |
 | `symbols/` | The public Go API: record type, `Embedded()`, `Read()` | Planned |
-| `cmd/vsym/` | The CLI: `candidates`, `propose`, `verify`, `derive`, `build` | Planned |
+| `cmd/vsym/` | The CLI: `candidates`, `derive`, `verify`, `build`. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Planned |
 | `internal/` | Fetch, diff, derive, verify, normalize | Planned |
 | `.claude/skills/` | Workflows for agents | Draft |
 

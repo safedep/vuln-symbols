@@ -17,14 +17,16 @@ OSV has no field for vulnerable symbols that is the same for every ecosystem.
 OSV also has no field for the evidence that a symbol is right. This project needs that evidence,
 because verification reads it.
 
-The extension lives at `affected[].database_specific.vuln_symbols`, one per affected package. If OSV
+The extension lives at `affected[].database_specific.vuln_symbols`, one per affected package. OSV
+defines `database_specific` as a free object that each database owns, with no fixed fields. OSV
+defines nothing inside it. `vuln_symbols` and every field in it belong to this project. If OSV
 adds a common symbol field later, the record moves to it, and the extension keeps only the evidence.
 
 ## Top-level fields
 
 | Field | Rule |
 | --- | --- |
-| `schema_version` | The OSV schema version that the record follows. |
+| `schema_version` | The OSV schema version that the tool validates against. It is 1.9.2 now. |
 | `id` | The id of the record in this database: `VSYM-<year>-<number>`. The prefix is provisional until it is registered with OSV. |
 | `aliases` | The advisory ids: `GHSA-…`, `CVE-…`, `GO-…`, `RUSTSEC-…`. At least one. |
 | `modified`, `published` | RFC 3339 times, as OSV requires. |
@@ -40,7 +42,7 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | --- | --- |
 | `package.ecosystem` | The OSV ecosystem name, as `Go`, `crates.io`, `npm` or `PyPI`. |
 | `package.name` | The name as the registry writes it. The record does not fold the name. A consumer folds it with its own identity rules. |
-| `ranges` | The affected ranges. They must sit inside the ranges of the advisory. |
+| `ranges` | Exactly one range. It must sit inside a range of the advisory. An advisory with a backport gives one `affected` entry per range, each with its own `fix`. |
 | `database_specific.vuln_symbols` | The extension. See below. |
 
 ## `vuln_symbols`
@@ -73,12 +75,13 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | `language` | The language of the symbols: `go`, `rust`, `javascript`, `python`, `java`. |
 | `method` | `upstream`, `patch-analysis` or `manual`. |
 | `coverage` | `exact` or `broad`. A record is `broad` when `entry_symbols.complete` is false, when it names no fix site, or when it has more than 50 fix sites. |
-| `fix` | The fix that the record reads. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
-| `fix_sites` | The fix sites. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. |
+| `advisory_modified` | A map from each id in `aliases` to the `modified` time of the advisory that `vsym candidates` read. Verification fails when the advisory changed later. |
+| `fix` | The fix that the record reads, for the one range of the entry. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
+| `fix_sites` | The fix sites. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. The Go vulnerability database lists the fix sites and their exported callers together, so an upstream Go record also holds callers. |
 | `changed_functions` | The account of every function that the fix changed. Required for a community record. Absent for an upstream record. |
 | `changed_functions[].account` | `fix-site` or `excluded`. |
-| `changed_functions[].reason` | For an exclusion: `test`, `comment-only`, `added`, `removed-unreachable`, `refactor`, `logging`, `other`. |
-| `changed_functions[].proof` | `tool` when `verify` proves the exclusion. `judgment` when a person or a model decided. `test`, `comment-only` and `added` must be `tool`. |
+| `changed_functions[].reason` | For an exclusion. Proved by the tool: `test`, `comment-only`, `added`, `outside-package`, `generated`. Judged: `refactor`, `logging`, `other`. |
+| `changed_functions[].proof` | `tool` when `verify` proves the exclusion. `judgment` when a person or a model decided. A proved reason must have `proof: tool`. |
 | `changed_functions[].note` | Required when `proof` is `judgment`. One or two sentences for the reviewer. |
 | `entry_symbols` | Derived by the tool. Never written by hand. `complete` is false when the derivation hit an unresolved call. |
 | `assist` | Optional. The model and the tool version that helped `propose`. It is provenance, not trust. |
@@ -105,10 +108,14 @@ The builder makes an upstream record from a source that already lists symbols. I
 `records/`. It exists only in the bundle.
 
 When a community record and an upstream record cover the same advisory and package, the upstream
-record wins. A difference between them fails the build, and a maintainer reads it.
+record wins. The build compares the union of `fix_sites` and `entry_symbols` of the two records, because an upstream Go record lists fix sites and callers together. A difference fails the build, and a maintainer reads it.
 
 ## Open questions
 
 - The record id prefix and its registration with OSV.
 - Whether OSV accepts a source that adds data to advisories that another database owns.
 - The license of community records. See the Licenses section of `AGENTS.md`.
+- Whether the advisory ids go in `aliases` or in `upstream`. OSV defines `aliases` as the same
+  vulnerability in other databases, and osv.dev groups records by alias. That can merge a record into
+  the group of its advisory. The OSV field `upstream` lists the upstream vulnerabilities that an entry
+  refers to, and can be the better home.

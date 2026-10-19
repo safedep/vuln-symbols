@@ -13,14 +13,15 @@ Find the id and apply its fix.
 | Id | Fix |
 | --- | --- |
 | V0 | Correct the field that the message names. Compare with `docs/spec/examples/`. |
-| V1 | The symbol does not exist at an affected version. Check the notation and the package version. Remove a symbol that does not exist. Never rename it to make it pass. |
+| V1 | A fix site that does not resolve means that `fix`, `ranges` or `package` is wrong, or the notation is wrong. Correct those. Never move a fix site to `excluded` to make it pass, and never rename it. |
 | V2 | The fix site is not a changed function. Remove it, or choose the right fix in `fix`. |
 | V3 | Run `vsym derive` again. Never edit `entry_symbols` by hand. |
 | V4 | Correct `aliases` or `ranges` from the advisory in OSV. |
 | V5 | Write the symbol in the notation of its language. |
+| V6 | Point `fix` at the source repository of the package and at the commits between the last affected and the first fixed version. For `release-diff`, use exactly those two versions. |
 | A1 | Add an account for each changed function that `vsym candidates` lists. Remove an account for a function that is not on the list. |
 | A2 | Keep one account per function. |
-| A3 | Set `proof: tool` for `test`, `comment-only` and `added`. If the tool cannot prove the reason, the reason is wrong. Choose another. |
+| A3 | Set `proof: tool` for a proved reason. If the tool cannot prove the reason, the reason is wrong. Choose `fix-site`, or a judged reason with a `note`. |
 | A4 | Add a `note` that says why the change does not touch the vulnerable behavior. |
 | A5 | Make `fix_sites` equal to the changed functions with `account: fix-site`. |
 

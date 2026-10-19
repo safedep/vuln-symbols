@@ -13,15 +13,17 @@ Read [docs/spec/record.md](../../../docs/spec/record.md) and
 
 ## Steps
 
-1. Check that no record in `records/` and no upstream record covers the advisory and the package. If
-   one exists, stop and say so.
+1. Run `vsym candidates <advisory-id>`. It reports an existing community record or upstream record
+   for the advisory and the package. If one exists, stop and say so.
 2. Read the advisory from OSV. Note the ecosystem, the package, the ranges and the `FIX` references.
+   Write one `affected` entry for each range.
 3. Choose the fix:
    - A `FIX` reference to a commit gives `fix.kind: commit`.
    - With no commit, use `fix.kind: release-diff` between the last affected and the first fixed
      version. Say in the pull request that the list of changed functions is long.
-4. Run `vsym candidates <advisory-id>`. It fetches the hashed artifacts, lists every changed function,
-   and writes the proved exclusions (`test`, `comment-only`, `added`).
+4. Run `vsym candidates <advisory-id>` with the fix. It fetches the hashed artifacts, lists every
+   changed function, and writes the proved exclusions. When a changed file belongs to another
+   published package that the advisory names, add an `affected` entry for that package.
 5. Sort each remaining changed function into one account:
    - `fix-site`: the function holds the vulnerable code, or the fix changed how it checks or uses
      untrusted input.
@@ -39,4 +41,5 @@ Read [docs/spec/record.md](../../../docs/spec/record.md) and
 - Never add a function to `changed_functions` that `vsym candidates` did not list.
 - Never run code from the package.
 - Set `assist` to the model and the tool version you used. Leave `review.state` as `unreviewed`.
-- Add yourself or the person you work for to `credits` as `ANALYST`.
+- Add the person you work for to `credits` as `ANALYST`. A model is never a credit. It goes only in
+  `assist`.
