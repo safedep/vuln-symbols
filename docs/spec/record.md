@@ -51,20 +51,23 @@ adds a common symbol field later, the record moves to it, and the extension keep
 {
   "format": 1,
   "language": "go",
-  "method": "patch-analysis",
+  "methods": ["patch-analysis"],
   "coverage": "exact",
   "fix": { "kind": "commit", "repo": "https://example.com/acme/widget", "commits": ["0123abc…"] },
-  "fix_sites": ["example.com/acme/widget/parse.readHeader"],
+  "fix_sites": [{ "name": "example.com/acme/widget/parse.readHeader" }],
   "changed_functions": [
-    { "symbol": "example.com/acme/widget/parse.readHeader", "file": "parse/header.go", "account": "fix-site" },
-    { "symbol": "example.com/acme/widget/parse.TestReadHeader", "file": "parse/header_test.go", "account": "excluded", "reason": "test", "proof": "tool" }
+    { "symbol": { "name": "example.com/acme/widget/parse.readHeader" }, "file": "parse/header.go", "account": "fix-site" },
+    { "symbol": { "name": "example.com/acme/widget/parse.TestReadHeader" }, "file": "parse/header_test.go", "account": "excluded", "reason": "test", "proof": "tool" }
   ],
   "entry_symbols": {
-    "symbols": ["example.com/acme/widget/parse.Decode"],
+    "symbols": [{ "name": "example.com/acme/widget/parse.Decode" }],
     "complete": true,
     "tool": "vsym 0.1.0"
   },
-  "assist": { "model": "<model name>", "tool": "vsym 0.1.0" },
+  "assist": [
+    { "tool": "vsym 0.1.0", "model": "<model name>" },
+    { "tool": "vsym 0.1.0", "model": "<other model name>" }
+  ],
   "review": { "state": "reviewed", "reviewers": ["<github handle>"] }
 }
 ```
@@ -73,24 +76,42 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | --- | --- |
 | `format` | The version of this extension. It starts at 1. |
 | `language` | The language of the symbols: `go`, `rust`, `javascript`, `python`, `java`. |
-| `method` | `upstream`, `patch-analysis` or `manual`. |
+| `methods` | How the record found its fix sites. A list of one or more of `upstream`, `patch-analysis` and `manual`, with no duplicate. A record can combine methods. `upstream` is never combined, because the builder makes an upstream record alone. A later format can add methods. |
 | `coverage` | `exact` or `broad`. A record is `broad` when `entry_symbols.complete` is false, when it names no fix site, or when it has more than 50 fix sites. |
 | `advisory_modified` | A map from each id in `aliases` to the `modified` time of the advisory that `vsym candidates` read. Verification fails when the advisory changed later. |
 | `fix` | The fix that the record reads, for the one range of the entry. A commit must be one that the advisory names. With no named commit, the fix is a `release-diff`. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
-| `fix_sites` | The fix sites. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. The Go vulnerability database lists the fix sites and their exported callers together, so an upstream Go record also holds callers. |
+| `fix_sites` | The fix sites, as symbol objects. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. The Go vulnerability database lists the fix sites and their exported callers together, so an upstream Go record also holds callers. |
 | `changed_functions` | The account of every function that the fix changed. Required for a community record. Absent for an upstream record. |
+| `changed_functions[].symbol` | The changed function, as a symbol object. |
 | `changed_functions[].account` | `fix-site` or `excluded`. |
 | `changed_functions[].reason` | For an exclusion. Proved by the tool: `test`, `comment-only`, `added`, `outside-package`. Judged: `generated`, `refactor`, `logging`, `other`. |
 | `changed_functions[].proof` | `tool` when `verify` proves the exclusion. `judgment` when a person or a model decided. A proved reason must have `proof: tool`. |
 | `changed_functions[].note` | Required when `proof` is `judgment`. One or two sentences for the reviewer. |
-| `entry_symbols` | Derived by the tool. Never written by hand. `complete` is false when the derivation hit an unresolved call. |
-| `assist` | Optional. The model and the tool version that helped `propose`. It is provenance, not trust. |
+| `entry_symbols` | Derived by the tool. Never written by hand. `symbols` holds symbol objects. `complete` is false when the derivation hit an unresolved call. |
+| `assist` | Optional. A list of the tools and the models that helped `propose`. Each entry has `tool`, the name and the version of the tool, and an optional `model`. A harness that uses several models gives one entry per model. Any tool can write an entry, not only `vsym`. It is provenance, not trust. |
 | `review` | The review state and the reviewers. |
+
+## Symbol objects
+
+A record writes each symbol as an object. Symbol objects appear in `fix_sites`, in
+`changed_functions[].symbol` and in `entry_symbols.symbols`.
+
+```json
+{ "name": "golang.org/x/net/html.render1" }
+```
+
+| Field | Rule |
+| --- | --- |
+| `name` | Required. The symbol in the notation of its language. See the next section. |
+
+A later format can add fields to the object, as a canonical form or the kind of the symbol. A new
+field never changes the meaning of `name`. A consumer ignores a field that it does not know. Two
+symbols are the same when their `name` values are the same.
 
 ## Symbol notation
 
-A symbol uses the notation of its language and its upstream database, so a person can read it and a
-tool can map it to any call-graph key.
+The `name` of a symbol uses the notation of its language and its upstream database, so a person can
+read it and a tool can map it to any call-graph key.
 
 | Language | Notation | Example |
 | --- | --- | --- |
@@ -102,13 +123,13 @@ The builder maps each symbol to the key form of a consumer. The record never sto
 
 ## Upstream records
 
-The builder makes an upstream record from a source that already lists symbols. It sets `method` to
-`upstream`, `review.state` to `verified` and `fix_sites` to the source symbols. It derives
+The builder makes an upstream record from a source that already lists symbols. It sets `methods` to
+`["upstream"]`, `review.state` to `verified` and `fix_sites` to the source symbols. It derives
 `entry_symbols` the same way as for a community record. An upstream record is not a file in
 `records/`. It exists only in the bundle.
 
 When a community record and an upstream record cover the same advisory and package, the upstream
-record wins. The build compares the union of `fix_sites` and `entry_symbols` of the two records, because an upstream Go record lists fix sites and callers together. A difference fails the build, and a maintainer reads it.
+record wins. The build compares the names in the union of `fix_sites` and `entry_symbols` of the two records, because an upstream Go record lists fix sites and callers together. A difference fails the build, and a maintainer reads it.
 
 ## Open questions
 

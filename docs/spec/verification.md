@@ -115,7 +115,7 @@ V6 has these rules:
 | A2 | One account each | A function has more than one entry. |
 | A3 | Proved reasons | An exclusion with a proved reason has `proof: judgment`, or the tool cannot prove it. The proved reasons are in the next table. |
 | A4 | Judged reasons | An exclusion with `proof: judgment` has no `note`. |
-| A5 | Consistent fix sites | `fix_sites` differs from the changed functions whose `account` is `fix-site`. |
+| A5 | Consistent fix sites | The names in `fix_sites` differ from the names of the changed functions whose `account` is `fix-site`. |
 
 The tool proves these reasons:
 

@@ -7,7 +7,7 @@ add it here in the same pull request.
 | --- | --- |
 | **record** | One OSV document in this database. It covers one advisory and the packages it affects. |
 | **advisory** | The upstream vulnerability report that a record adds symbols to, as `GHSA-…`, `CVE-…`, `GO-…` or `RUSTSEC-…`. A record lists the advisory ids in `aliases`. |
-| **symbol** | A function or a method, written in the native notation of its language. See "Symbol notation" in [spec/record.md](spec/record.md). |
+| **symbol** | A function or a method. A record writes it as a symbol object, with its `name` in the native notation of its language. See "Symbol objects" in [spec/record.md](spec/record.md). |
 | **fix** | The code change that removes the vulnerability: one or more fix commits, or the difference between the last affected release and the first fixed release. |
 | **changed function** | A function whose parsed code the fix changed, or that the fix added or removed. The tool lists them. A person or a model never adds one. |
 | **fix site** | A changed function that holds the vulnerable code. It can be internal to the package. |
