@@ -22,7 +22,20 @@ Private, before the first alpha release. The record format and the verification 
 - [docs/spec/record.md](docs/spec/record.md): the record, an OSV document with one extension
 - [docs/spec/verification.md](docs/spec/verification.md): the checks, the accounting rule and the
   trust rules
+- [docs/spec/bundle.md](docs/spec/bundle.md): the signed bundle that consumers download
 - [docs/glossary.md](docs/glossary.md): the terms
+
+## Use the records
+
+```go
+c, err := symbols.New(symbols.WithCacheDir(dir))
+_, err = c.Update(ctx) // at most once a day, checks the signature
+b, err := c.Load(ctx)
+answers := b.Lookup(symbols.Query{Package: pv, IDs: []string{"GO-2024-1234", "CVE-2024-0001"}})
+```
+
+`pv` is a `dry/api/pb` `PackageVersion`. Each answer holds the record and the affected entry, with the
+fix sites of the package.
 
 ## Contributing
 
