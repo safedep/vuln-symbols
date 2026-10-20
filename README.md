@@ -14,7 +14,7 @@ Public preview. The formats can change until the first alpha release.
 
 | Part | State |
 | --- | --- |
-| Upstream records from the Go vulnerability database and RustSec | Published every day |
+| Upstream records from the Go vulnerability database and RustSec | Built every day, and published when the records change |
 | Signed bundle and the Go SDK in [`symbols/`](symbols) | Available |
 | Community records for npm, PyPI, Maven and other ecosystems | Planned. The record format and the verification rules are drafts. |
 | `vsym candidates`, `vsym derive` and `vsym verify` | Planned |
@@ -43,11 +43,14 @@ extension lists the fix sites, the functions that hold the vulnerable code.
 }
 ```
 
-`coverage` tells a consumer how far to trust the list:
+`coverage` and `review.state` tell a consumer how far to trust the list:
 
 - `exact`: the list is complete. A tool can say "not called" when the project calls none of the fix
-  sites.
+  sites, but only when `review.state` is also `verified`.
 - `broad`: the list can be incomplete. A tool can say "called" from it, but never "not called".
+
+An upstream record is `verified`. A community record is `verified` after two maintainers approve it.
+The trust rules in [docs/spec/verification.md](docs/spec/verification.md) give the full rule.
 
 All RustSec entries are `broad`, because RustSec does not promise a complete function list.
 
@@ -87,8 +90,10 @@ flowchart LR
    to steal. The sign job has the OIDC right only, and it runs no code of this repository.
 3. **Check.** Before the upload, the SDK reads the signed build as a consumer does. A bundle that no
    client would accept stops here.
-4. **Publish.** The job uploads the files to R2. A bundle and its signed manifest are immutable and
-   named by the bundle hash. Only `manifest.json` and its signature change.
+4. **Publish.** When the bundle hash differs from the live bundle, the job uploads the files to R2.
+   A day with no change in the records publishes nothing, so the signing time stays at the last
+   change. A bundle and its signed manifest are immutable and named by the bundle hash. Only
+   `manifest.json` and its signature change.
 
 The manifest holds the hashes of the bundle, so one signature covers every record.
 
@@ -156,8 +161,9 @@ Other options:
 | `WithTrustedRoot(path)` | Read the Sigstore trusted root from a file in place of TUF, for a machine with no network. |
 | `WithOffline()` | Read the cache only. |
 
-`Bundle.Info().SignedAt` gives the signing time. Warn your users when it is old. A host that stops
-publishing looks the same as a database with no new advisories.
+`Bundle.Info().SignedAt` gives the signing time. It is the time of the last change in the records,
+not of the last check, so it can be some days old. Warn your users when it is much older. A host that
+stops publishing looks the same as a database with no new advisories.
 
 ## Use the bundle without Go
 
