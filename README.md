@@ -188,15 +188,16 @@ gzip -dc "$sha.jsonl.gz" | head -1 | jq .
 
 ## Data licenses
 
-The code is Apache-2.0. Each record keeps the license of its source, in
-`database_specific.license`. The manifest names the license and the attribution of each source.
+The code is Apache-2.0. Each record names its license in `database_specific.license`. The manifest
+names the license and the attribution of each source.
 
 | Source | License |
 | --- | --- |
+| Community records in [`records/`](records), by SafeDep and contributors | CC-BY-4.0 |
 | [Go vulnerability database](https://vuln.go.dev), by the Go Authors | CC-BY-4.0 |
 | [RustSec advisory database](https://rustsec.org) | CC0-1.0 |
 
-The license of community records is not decided yet. See [NOTICE](NOTICE).
+A product that ships the records gives attribution to each CC-BY-4.0 source. See [NOTICE](NOTICE).
 
 ## Documentation
 
@@ -215,4 +216,5 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+The code is Apache-2.0. See [LICENSE](LICENSE). The community records are CC-BY-4.0. See
+[records/LICENSE](records/LICENSE).

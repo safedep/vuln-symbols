@@ -3,6 +3,11 @@ Copyright 2026 SafeDep
 
 This product includes software developed at SafeDep (https://safedep.io).
 
+The code is licensed under Apache-2.0. See LICENSE.
+
+The community records in records/ are copyright SafeDep and the contributors, and
+are licensed under CC-BY-4.0. See records/LICENSE.
+
 The bundle includes data from these sources, under their own licenses:
 
 - Go Vulnerability Database (https://vuln.go.dev), CC-BY-4.0

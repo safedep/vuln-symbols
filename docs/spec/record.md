@@ -30,11 +30,11 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | `id` | The id of a community record: `VSYM-<year>-<number>`. The prefix is provisional until it is registered with OSV. An upstream record keeps the id of its source advisory. |
 | `aliases` | The advisory ids: `GHSA-…`, `CVE-…`, `GO-…`, `RUSTSEC-…`. At least one for a community record. An upstream record keeps the aliases of its source, which can be none. |
 | `modified`, `published` | RFC 3339 times, as OSV requires. |
-| `summary` | Optional. One line. |
+| `summary` | Optional. One line that the proposer writes. A community record never copies the summary or the details of the advisory, because the advisory has its own license. |
 | `affected` | One entry per package. See below. |
 | `references` | The fix commits as `FIX` references. Other references are optional. |
 | `credits` | The people who proposed and reviewed the record, with the OSV credit types. A proposer is `ANALYST`. |
-| `database_specific.license` | The license of the record. An upstream record keeps the license of its source. |
+| `database_specific.license` | The license of the record. A community record is `CC-BY-4.0`. An upstream record keeps the license of its source. |
 | `database_specific.source` | Optional. The page of the source advisory of an upstream record. |
 
 ## `affected[]`
@@ -153,7 +153,6 @@ build, and a maintainer reads it.
 
 - The record id prefix and its registration with OSV.
 - Whether OSV accepts a source that adds data to advisories that another database owns.
-- The license of community records. See the Licenses section of `AGENTS.md`.
 - Whether the advisory ids go in `aliases` or in `upstream`. OSV defines `aliases` as the same
   vulnerability in other databases, and osv.dev groups records by alias. That can merge a record into
   the group of its advisory. The OSV field `upstream` lists the upstream vulnerabilities that an entry

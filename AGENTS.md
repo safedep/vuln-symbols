@@ -118,8 +118,10 @@ go test ./... -count=1
 ## Licenses
 
 - The code is Apache-2.0 (`LICENSE`).
-- The license of the community records is not decided yet. Until it is decided, the repository takes
-  no record from outside SafeDep. Code contributions are welcome under Apache-2.0.
+- Community records are CC-BY-4.0 (`records/LICENSE`). V0 rejects a community record with another
+  license. A record never copies the summary or the details of its advisory.
+- Code contributions are welcome under Apache-2.0. Records from outside SafeDep start when
+  `vsym verify` exists.
 - Upstream records keep their own license: Go vulnerability database CC-BY-4.0, RustSec CC0-1.0.
   Each record and the bundle manifest name the license of their source.
 

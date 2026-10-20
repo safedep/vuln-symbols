@@ -1,7 +1,7 @@
 # Contributing
 
-Issues and code changes are welcome. Community records are not open yet, because their license is not
-decided and the tools that verify them do not exist yet.
+Issues and code changes are welcome. Community records are not open yet, because the tools that
+verify them do not exist yet.
 
 ## Developer Certificate of Origin
 
@@ -10,7 +10,9 @@ Origin](https://developercertificate.org/) asks. `git commit -s` adds it. The li
 the right to submit the change under its license.
 
 - Code is under Apache-2.0.
-- A record is under the license that its `database_specific.license` names.
+- A community record is under CC-BY-4.0. See [records/LICENSE](records/LICENSE).
+- Do not copy the summary or the details of the advisory into a record. The advisory has its own
+  license. Facts such as advisory ids and version ranges are fine.
 
 ## Code
 
