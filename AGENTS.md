@@ -66,13 +66,16 @@ These rules hold for every tool, skill and agent in this repository.
 | Path | Holds | Status |
 | --- | --- | --- |
 | `docs/spec/record.md` | The record format: an OSV document with one extension | Draft |
-| `docs/spec/verification.md` | The checks V1 to V5, the accounting rule and the trust rules | Draft |
+| `docs/spec/verification.md` | The checks V0 to V6, the accounting rule and the trust rules | Draft |
+| `docs/spec/bundle.md` | The bundle, the manifest, the signature and the client rules | Draft |
 | `docs/spec/examples/` | Synthetic example records | Draft |
 | `docs/glossary.md` | One word for one concept | Draft |
 | `records/<ecosystem>/<id>.json` | Community records, one OSV document each | Empty |
-| `symbols/` | The public Go API: record type, `Embedded()`, `Read()`. Not created yet. | Planned |
-| `cmd/vsym/` | The CLI: `candidates`, `derive`, `verify`, `build`. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Planned |
-| `internal/` | Fetch, diff, derive, verify, normalize | Planned |
+| `symbols/` | The public Go API: the record type, and the client that fetches, verifies, caches and matches the bundle | Draft |
+| `cmd/vsym/` | The CLI. `build` exists. `candidates`, `derive` and `verify` are planned. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Draft |
+| `internal/osvexport/`, `internal/upstream/`, `internal/build/` | Read the OSV exports, make the upstream records, write the bundle | Draft |
+| `internal/verify/` | The checks of the verification spec. V0 and V5 exist. | Draft |
+| `.github/workflows/build.yml` | The daily build, signature and publish. Its file name and branch are part of the signature identity that every client checks. | Draft |
 | `.claude/skills/` | Workflows for agents | Draft |
 
 Add a package only when a skill or a spec section needs it. Do not add empty placeholder code.

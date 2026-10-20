@@ -1,0 +1,234 @@
+name: Build bundle
+
+# The workflow builds the symbol bundle from the upstream exports, signs the
+# manifest with the OIDC identity of this workflow, and publishes the files
+# to R2. The symbols SDK accepts only a manifest that this workflow signed on
+# main. So this file name and the branch are part of the trust contract of
+# every client. A rename breaks every client.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "symbols/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build.yml"
+
+permissions: {}
+
+concurrency:
+  group: build-bundle
+  cancel-in-progress: false
+
+env:
+  PUBLIC_BASE_URL: https://vuln-data.safedep.io/v1
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build the bundle
+        run: go run ./cmd/vsym build -out out
+
+      # The bundle name is its SHA-256, so the same name means the same
+      # content. A missing live manifest is the first run.
+      - name: Compare with the live bundle
+        id: compare
+        run: |
+          built=$(jq -r .bundle.sha256 out/manifest.json)
+          live=$(curl -fsS "$PUBLIC_BASE_URL/manifest.json" | jq -r .bundle.sha256 || true)
+          if [ "$built" = "$live" ]; then
+            echo "::notice::The live bundle is $live. Nothing to publish."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Built bundle $built. Live bundle ${live:-none}."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Keep the build
+        if: steps.compare.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle
+          path: out/
+          retention-days: 7
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    if: needs.build.outputs.changed == 'true'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    # The OIDC token is the only right of this job. It runs no code of the
+    # repository, so no change to the builder can reach the token.
+    permissions:
+      id-token: write
+    steps:
+      - name: Get the build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bundle
+          path: out
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        with:
+          cosign-release: v3.1.2
+
+      # The signature goes next to the manifest of the bundle, the pair that
+      # a client trusts, and next to the newest manifest for people.
+      - name: Sign the manifest
+        run: |
+          sha=$(jq -r .bundle.sha256 out/manifest.json)
+          cmp out/manifest.json "out/manifests/${sha}.json"
+          mkdir -p sig/manifests
+          cosign sign-blob --yes --bundle "sig/manifests/${sha}.sigstore.json" out/manifest.json
+          cp "sig/manifests/${sha}.sigstore.json" sig/manifest.sigstore.json
+
+      - name: Keep the signature
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signature
+          path: sig/
+          retention-days: 7
+          if-no-files-found: error
+
+  check:
+    needs: [build, sign]
+    if: needs.build.outputs.changed == 'true'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+
+      - name: Get the build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bundle
+          path: out
+
+      - name: Get the signature
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signature
+          path: out
+
+      # The client code of the symbols package reads the signed build as a
+      # consumer does: the signature, the identity, the hashes and every
+      # record. A bundle that no client would accept stops here.
+      - name: Check the signed build with the client
+        run: go run ./cmd/vsym check -dir out
+
+  publish:
+    needs: [build, sign, check]
+    if: needs.build.outputs.changed == 'true'
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions: {}
+    env:
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # R2 does not check the newer default checksums of the AWS CLI.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - name: Check the R2 settings
+        id: r2
+        run: |
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "::notice::The publish environment has no R2 settings yet. The bundle is built and signed, and not published."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get the build
+        if: steps.r2.outputs.ready == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bundle
+          path: out
+
+      - name: Get the signature
+        if: steps.r2.outputs.ready == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signature
+          path: out
+
+      # The check job read the same artifacts. The hash check here guards
+      # the copy that this job uploads.
+      - name: Check the bundle hash
+        if: steps.r2.outputs.ready == 'true'
+        run: |
+          sha=$(jq -r .bundle.sha256 out/manifest.json)
+          echo "${sha}  out/bundles/${sha}.jsonl.gz" | sha256sum -c -
+
+      # A bundle and the signed pair of its manifest never change. When a
+      # bundle comes back with the same hash, the host keeps the first pair,
+      # because a cache can hold it for a year. A client that has a newer
+      # bundle then checks the new manifest.sigstore.json. The newest
+      # manifest goes last, so a client never reads a manifest whose pair is
+      # not there.
+      - name: Upload to R2
+        if: steps.r2.outputs.ready == 'true'
+        run: |
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          sha=$(jq -r .bundle.sha256 out/manifest.json)
+          put() {
+            aws s3 cp "$1" "s3://${R2_BUCKET}/v1/$2" --endpoint-url "$endpoint" --content-type "$3" --cache-control "$4" --only-show-errors
+          }
+          exists() {
+            aws s3api head-object --bucket "$R2_BUCKET" --key "v1/$1" --endpoint-url "$endpoint" >/dev/null 2>&1
+          }
+          forever="public, max-age=31536000, immutable"
+          short="public, max-age=300"
+          for f in "bundles/${sha}.jsonl.gz" "manifests/${sha}.json" "manifests/${sha}.sigstore.json"; do
+            if exists "$f"; then
+              echo "v1/$f exists. The host keeps it."
+            else
+              case "$f" in
+                *.gz) put "out/$f" "$f" application/gzip "$forever" ;;
+                *) put "out/$f" "$f" application/json "$forever" ;;
+              esac
+            fi
+          done
+          put out/manifest.sigstore.json manifest.sigstore.json application/json "$short"
+          put out/manifest.json manifest.json application/json "$short"
+          echo "::notice::Published bundle ${sha}."

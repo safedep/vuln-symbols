@@ -27,14 +27,15 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | Field | Rule |
 | --- | --- |
 | `schema_version` | The OSV schema version that the tool validates against. It is 1.9.2 now. |
-| `id` | The id of the record in this database: `VSYM-<year>-<number>`. The prefix is provisional until it is registered with OSV. |
-| `aliases` | The advisory ids: `GHSA-…`, `CVE-…`, `GO-…`, `RUSTSEC-…`. At least one. |
+| `id` | The id of a community record: `VSYM-<year>-<number>`. The prefix is provisional until it is registered with OSV. An upstream record keeps the id of its source advisory. |
+| `aliases` | The advisory ids: `GHSA-…`, `CVE-…`, `GO-…`, `RUSTSEC-…`. At least one for a community record. An upstream record keeps the aliases of its source, which can be none. |
 | `modified`, `published` | RFC 3339 times, as OSV requires. |
 | `summary` | Optional. One line. |
 | `affected` | One entry per package. See below. |
 | `references` | The fix commits as `FIX` references. Other references are optional. |
 | `credits` | The people who proposed and reviewed the record, with the OSV credit types. A proposer is `ANALYST`. |
 | `database_specific.license` | The license of the record. An upstream record keeps the license of its source. |
+| `database_specific.source` | Optional. The page of the source advisory of an upstream record. |
 
 ## `affected[]`
 
@@ -77,7 +78,7 @@ adds a common symbol field later, the record moves to it, and the extension keep
 | `format` | The version of this extension. It starts at 1. |
 | `language` | The language of the symbols: `go`, `rust`, `javascript`, `python`, `java`. |
 | `methods` | How the record found its fix sites. A list of one or more of `upstream`, `patch-analysis` and `manual`, with no duplicate. A record can combine methods. `upstream` is never combined, because the builder makes an upstream record alone. A later format can add methods. |
-| `coverage` | `exact` or `broad`. A record is `broad` when `entry_symbols.complete` is false, when it names no fix site, or when it has more than 50 fix sites. |
+| `coverage` | `exact` or `broad`. A record is `broad` when it has `entry_symbols` with `complete` false, when it names no fix site, when it has more than 50 fix sites, or when its source does not name its symbols in full. A consumer says "not called" only from an `exact` entry. |
 | `advisory_modified` | A map from each id in `aliases` to the `modified` time of the advisory that `vsym candidates` read. Verification fails when the advisory changed later. |
 | `fix` | The fix that the record reads, for the one range of the entry. A commit must be one that the advisory names. With no named commit, the fix is a `release-diff`. `kind` is `commit`, with `repo` and `commits`, or `release-diff`, with `from` and `to` versions. A record with `release-diff` has a much longer list of changed functions, and a reviewer must read more. |
 | `fix_sites` | The fix sites, as symbol objects. For a community record they are exactly the changed functions whose `account` is `fix-site`. For an upstream record they are the symbols of the source. The Go vulnerability database lists the fix sites and their exported callers together, so an upstream Go record also holds callers. |
@@ -115,7 +116,7 @@ read it and a tool can map it to any call-graph key.
 
 | Language | Notation | Example |
 | --- | --- | --- |
-| Go | `<import path>.<Func>` or `<import path>.<Type>.<Method>`, as the Go vulnerability database writes them | `golang.org/x/net/html.render1` |
+| Go | `<import path>.<Func>` or `<import path>.<Type>.<Method>`, as the Go vulnerability database writes them. The init functions of a package are `init#1`, `init#2` and on. The import path is the module path or a path under it. The modules `stdlib` and `toolchain` hold the paths of the Go distribution. | `golang.org/x/net/html.render1` |
 | Rust | The path as RustSec writes it | `smallvec::SmallVec::insert_many` |
 | JavaScript, Python, Java | Open. The first tool that supports the language defines the notation in this section, with examples, in the same pull request. | |
 
@@ -123,13 +124,30 @@ The builder maps each symbol to the key form of a consumer. The record never sto
 
 ## Upstream records
 
-The builder makes an upstream record from a source that already lists symbols. It sets `methods` to
-`["upstream"]`, `review.state` to `verified` and `fix_sites` to the source symbols. It derives
-`entry_symbols` the same way as for a community record. An upstream record is not a file in
-`records/`. It exists only in the bundle.
+The builder makes an upstream record from a source that already lists symbols: the Go vulnerability
+database (`GO-…`) and RustSec (`RUSTSEC-…`). The builder reads only the advisories that the source
+owns, and skips a withdrawn advisory and an advisory with no symbol. An upstream record:
+
+- keeps the `id`, `aliases`, `modified`, `published`, `summary` and `references` of the source
+  advisory
+- keeps one `affected` entry for each entry of the source, with its range
+- sets `methods` to `["upstream"]`, `review.state` to `verified`, and `fix_sites` to the source
+  symbols, sorted and with no duplicate
+- has no `fix`, no `changed_functions` and no `advisory_modified`
+- has no `entry_symbols` in format 1. A later builder derives them.
+
+The Go vulnerability database names its symbols in full when every import of the entry lists its
+symbols. A Go import with no symbol list affects the whole package, so its entry is `broad`. RustSec
+lists the affected functions with no promise that the list is complete, so every RustSec entry is
+`broad`. A RustSec entry gives "called", and never "not called".
+
+An upstream record is not a file in `records/`. It exists only in the bundle. See
+[bundle.md](bundle.md).
 
 When a community record and an upstream record cover the same advisory and package, the upstream
-record wins. The build compares the names in the union of `fix_sites` and `entry_symbols` of the two records, because an upstream Go record lists fix sites and callers together. A difference fails the build, and a maintainer reads it.
+record wins. The build compares the names in the union of `fix_sites` and `entry_symbols` of the two
+records, because an upstream Go record lists fix sites and callers together. A difference fails the
+build, and a maintainer reads it.
 
 ## Open questions
 

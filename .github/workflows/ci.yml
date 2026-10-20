@@ -31,18 +31,13 @@ jobs:
       - name: Module tidy
         run: |
           go mod tidy
-          git diff --exit-code go.mod
+          git diff --exit-code go.mod go.sum
 
-      # The repository has no Go package until the first tool lands, and go
-      # vet and go test fail when ./... matches nothing.
-      - name: Vet and test
-        run: |
-          if [ -z "$(go list ./...)" ]; then
-            echo "No Go package yet"
-            exit 0
-          fi
-          go vet ./...
-          go test ./... -count=1
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1
 
       - name: Check JSON examples
         run: |

@@ -21,6 +21,8 @@ add it here in the same pull request.
 | **review state** | `unreviewed`, `reviewed` (one maintainer) or `verified` (two maintainers, or an upstream source). |
 | **upstream record** | A record that the builder makes from an upstream database that already lists symbols, as the Go vulnerability database or RustSec. It is not a file in `records/`. |
 | **community record** | A record in `records/`, which a contributor proposed and a maintainer merged. |
-| **bundle** | The built, signed file set that consumers download or embed: the records, the manifest and the signature. |
+| **bundle** | The built file of every record that a consumer downloads, with its manifest and signature. See [spec/bundle.md](spec/bundle.md). |
+| **manifest** | The signed description of one bundle: its hashes, its time and its sources. |
+| **pin** | A client setting that keeps the client on one bundle, by the SHA-256 of the bundle file. |
 | **verify** | The deterministic check of a record. It never calls a model. |
 | **propose** | The workflow that drafts a record from a fix. A model can help here, and only here. |
