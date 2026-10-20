@@ -8,8 +8,9 @@ it, so Claude Code loads it.
 vuln-symbols is an open database of vulnerable functions for every ecosystem, in OSV format, and the
 tooling that builds it.
 
-- A **record** says which functions of a package a vulnerability lives in. A reachability tool needs
-  this to tell "the project calls the vulnerable code" from "the project only installs the package".
+- A **record** says which functions of a package a vulnerability lives in. A reachability analysis
+  tool needs this to tell "the project calls the vulnerable code" from "the project only installs the
+  package".
 - Upstream databases hold symbols for some ecosystems. The Go vulnerability database has symbols for
   most of its records. RustSec has them for some. npm, PyPI and Maven advisories have none.
 - This project mirrors the upstream symbols, and takes community records where no upstream home
@@ -23,8 +24,8 @@ before you change any tool.
 
 ## Status
 
-The repository is public, as a preview before the first alpha release. The formats can change until
-that release. The MVP scope is:
+The repository is public, as a preview before the first stable release. The formats can change
+until that release. The MVP scope is:
 
 1. The record format and the verification rules, in `docs/spec/`.
 2. The tooling that proposes, verifies and builds records.

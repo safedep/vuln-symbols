@@ -1,6 +1,6 @@
 # The record format
 
-Status: draft. The format changes freely until the first alpha release.
+Status: draft. The format changes freely until the first stable release.
 
 A record is an [OSV](https://ossf.github.io/osv-schema/) document. It uses the OSV fields for
 everything that OSV already covers, and adds one object for what OSV does not cover. A consumer that

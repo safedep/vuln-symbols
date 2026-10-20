@@ -1,6 +1,6 @@
 # The bundle
 
-Status: draft. The format changes freely until the first alpha release.
+Status: draft. The format changes freely until the first stable release.
 
 The bundle is how a consumer gets the records. The build workflow makes it every day, signs it, and
 publishes it. The `symbols` package of this repository fetches, verifies, caches and matches it. A

@@ -2,9 +2,10 @@
 
 An open database of vulnerable functions, in [OSV](https://ossf.github.io/osv-schema/) format.
 
-A vulnerability advisory names a package and a range of versions. It does not always name the functions that
-hold the vulnerable code. A reachability analysis tool needs those functions. With them, it can tell "the
-project calls the vulnerable code" from "the project only installs the package".
+A vulnerability advisory names a package and a range of versions. It does not always name the
+functions that hold the vulnerable code. A reachability analysis tool needs those functions. With
+them, it can tell "the project calls the vulnerable code" from "the project only installs the
+package".
 
 vuln-symbols publishes these functions as a signed bundle that any tool can download and verify.
 
@@ -72,7 +73,7 @@ flowchart LR
   end
   host[(vuln-data.safedep.io/v1)]
   sdk[symbols SDK<br/>verify, cache, match]
-  tool[Reachability tool]
+  tool[Reachability analysis tool]
 
   go --> build
   rs --> build
