@@ -67,5 +67,5 @@
     { "type": "FIX", "url": "https://example.com/acme/widget/commit/0000000000000000000000000000000000000001" }
   ],
   "credits": [{ "name": "Example Contributor", "type": "ANALYST" }],
-  "database_specific": { "license": "unset" }
+  "database_specific": { "license": "CC-BY-4.0" }
 }

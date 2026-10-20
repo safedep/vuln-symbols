@@ -103,6 +103,9 @@ func V0(r symbols.Record) error {
 	if !upstream && len(r.Aliases) == 0 {
 		fail("a community record names at least one advisory in aliases")
 	}
+	if !upstream && r.DatabaseSpecific.License != symbols.CommunityLicense {
+		fail("a community record has license %q, not %q", r.DatabaseSpecific.License, symbols.CommunityLicense)
+	}
 	return errors.Join(errs...)
 }
 

@@ -150,6 +150,9 @@ const (
 // MaxExactFixSites is the largest number of fix sites of an exact record.
 const MaxExactFixSites = 50
 
+// CommunityLicense is the license of every community record.
+const CommunityLicense = "CC-BY-4.0"
+
 // Names returns the names of the fix sites of an affected package.
 func (a Affected) Names() []string {
 	out := make([]string, len(a.DatabaseSpecific.VulnSymbols.FixSites))

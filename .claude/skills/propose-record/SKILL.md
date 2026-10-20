@@ -8,6 +8,9 @@ description: Use when someone asks you to add vulnerable symbols for an advisory
 
 # Propose a record
 
+`vsym candidates`, `vsym derive` and `vsym verify` are planned. Until they exist, this workflow
+cannot run. Say so, and stop.
+
 Read [docs/spec/record.md](../../../docs/spec/record.md) and
 [docs/spec/verification.md](../../../docs/spec/verification.md) first.
 

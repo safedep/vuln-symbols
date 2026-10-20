@@ -72,6 +72,12 @@ func TestV0_Rules(t *testing.T) {
 			vs(r).Methods = []string{symbols.MethodPatchAnalysis}
 			vs(r).Review.State = symbols.ReviewUnreviewed
 		}, "aliases"},
+		{"community record with another license", func(r *symbols.Record) {
+			vs(r).Methods = []string{symbols.MethodPatchAnalysis}
+			vs(r).Review.State = symbols.ReviewUnreviewed
+			r.Aliases = []string{"GHSA-aaaa-bbbb-cccc"}
+			r.DatabaseSpecific.License = "Apache-2.0"
+		}, `license "Apache-2.0"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := upstreamRecord()
