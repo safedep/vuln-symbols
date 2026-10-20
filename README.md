@@ -2,15 +2,15 @@
 
 An open database of vulnerable functions, in [OSV](https://ossf.github.io/osv-schema/) format.
 
-A vulnerability advisory names a package and a range of versions. It seldom names the functions that
-hold the vulnerable code. A reachability tool needs those functions. With them, it can tell "the
+A vulnerability advisory names a package and a range of versions. It does not always name the functions that
+hold the vulnerable code. A reachability analysis tool needs those functions. With them, it can tell "the
 project calls the vulnerable code" from "the project only installs the package".
 
 vuln-symbols publishes these functions as a signed bundle that any tool can download and verify.
 
 ## Status
 
-Public preview. The formats can change until the first alpha release.
+Public preview. The formats can change until the first stable release.
 
 | Part | State |
 | --- | --- |
