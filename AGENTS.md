@@ -23,11 +23,15 @@ before you change any tool.
 
 ## Status
 
-The repository is private until the first alpha release. The MVP scope is:
+The repository is public, as a preview before the first alpha release. The formats can change until
+that release. The MVP scope is:
 
 1. The record format and the verification rules, in `docs/spec/`.
 2. The tooling that proposes, verifies and builds records.
 3. A signed bundle that vet v2 can read.
+
+The daily signed bundle of upstream records and the `symbols` SDK work today. Community records and
+the commands that verify them are planned.
 
 ## Dependency direction
 
@@ -72,7 +76,7 @@ These rules hold for every tool, skill and agent in this repository.
 | `docs/glossary.md` | One word for one concept | Draft |
 | `records/<ecosystem>/<id>.json` | Community records, one OSV document each | Empty |
 | `symbols/` | The public Go API: the record type, and the client that fetches, verifies, caches and matches the bundle | Draft |
-| `cmd/vsym/` | The CLI. `build` exists. `candidates`, `derive` and `verify` are planned. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Draft |
+| `cmd/vsym/` | The CLI. `build` and `check` exist. `candidates`, `derive` and `verify` are planned. `propose` is the agent workflow in `.claude/skills/propose-record`, not a command. | Draft |
 | `internal/osvexport/`, `internal/upstream/`, `internal/build/` | Read the OSV exports, make the upstream records, write the bundle | Draft |
 | `internal/verify/` | The checks of the verification spec. V0 and V5 exist. | Draft |
 | `.github/workflows/build.yml` | The daily build, signature and publish. Its file name and branch are part of the signature identity that every client checks. | Draft |
@@ -115,7 +119,7 @@ go test ./... -count=1
 
 - The code is Apache-2.0 (`LICENSE`).
 - The license of the community records is not decided yet. Until it is decided, the repository takes
-  no contribution from outside SafeDep.
+  no record from outside SafeDep. Code contributions are welcome under Apache-2.0.
 - Upstream records keep their own license: Go vulnerability database CC-BY-4.0, RustSec CC0-1.0.
   Each record and the bundle manifest name the license of their source.
 

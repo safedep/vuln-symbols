@@ -7,6 +7,9 @@ description: Use when someone asks you to review a record pull request, to check
 
 # Review a record
 
+`vsym candidates`, `vsym derive` and `vsym verify` are planned. Until they exist, this workflow
+cannot run. Say so, and stop.
+
 Verification already proved that each symbol is real, that each fix site is linked to the fix, and
 that every changed function has an account. Do not repeat that work. Read what it cannot prove.
 

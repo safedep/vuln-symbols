@@ -1,5 +1,8 @@
 # Community records
 
+This directory is empty. Community records start when the license of the records is decided and
+`vsym verify` exists.
+
 One OSV document per advisory, at `records/<OSV ecosystem>/<record id>.json`, as
 `records/npm/VSYM-2026-0001.json`.
 

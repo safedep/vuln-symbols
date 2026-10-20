@@ -7,6 +7,9 @@ description: Use when vsym verify fails on a record, when CI rejects a record pu
 
 # Fix a record that fails verify
 
+`vsym candidates`, `vsym derive` and `vsym verify` are planned. Until they exist, this workflow
+cannot run. Say so, and stop.
+
 Each failure names a check id from [docs/spec/verification.md](../../../docs/spec/verification.md).
 Find the id and apply its fix.
 
