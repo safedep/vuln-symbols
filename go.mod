@@ -3,7 +3,7 @@ module github.com/safedep/vuln-symbols
 go 1.27.1
 
 require (
-	buf.build/gen/go/safedep/api/protocolbuffers/go v1.36.12-20261008101944-a7c8d044dfa5.2
+	buf.build/gen/go/safedep/api/protocolbuffers/go v1.36.12-20261023124736-5badde2369ad.2
 	github.com/safedep/dry v0.0.0-20261015111342-1a19dccb938a
 	github.com/sigstore/sigstore-go v1.3.0
 	github.com/stretchr/testify v1.12.1
