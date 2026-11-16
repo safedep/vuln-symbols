@@ -7,7 +7,7 @@ require (
 	github.com/safedep/dry v0.0.0-20261015111342-1a19dccb938a
 	github.com/sigstore/sigstore-go v1.3.0
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/mod v0.42.0
+	golang.org/x/mod v0.43.0
 )
 
 require (
